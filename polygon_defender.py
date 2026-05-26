@@ -1,3 +1,4 @@
+import os
 from dataclasses import dataclass
 from typing import List
 import matplotlib.pyplot as plt
@@ -24,10 +25,52 @@ class Polygon:
     vertices: List[Point]
 
 def load_polygon() -> Polygon:
-    pass
+    """Prosi użytkownika o wybór poziomu i wczytuje punkty z pliku tekstowego."""
+    print("Dostępne poziomy: 1, 2, 3")
+    while True:
+        level = input("Wybierz poziom (1-3): ").strip()
+        filename = f"poziom{level}.txt"
+
+        if level in ["1", "2", "3"]:
+            if os.path.exists(filename):
+                break
+            else:
+                print(f"[Błąd]: Nie znaleziono pliku '{filename}' w folderze programu!")
+        else:
+            print("[Błąd]: Nieprawidłowy wybór. Wpisz 1, 2 lub 3.")
+
+    vertices = []
+    print(f"Wczytywanie punktów z pliku: {filename}...")
+
+    with open(filename, "r") as file:
+        for line_num, line in enumerate(file, 1):
+            line = line.strip()
+            if not line:  # Pomiń puste linie
+                continue
+            try:
+                x_str, y_str = line.split()
+                pt = Point(float(x_str), float(y_str))
+                vertices.append(pt)
+            except ValueError:
+                print(f"[Ostrzeżenie]: Ignoruję błędną linię {line_num}: '{line}'")
+
+    return Polygon(vertices=vertices)
 
 def is_simple(p: Polygon) -> bool:
-    pass
+    """Sprawdza, czy wielokąt jest prosty (brak samoprzecięć)."""
+    n = len(p.vertices)
+    if n < 3:
+        return False
+
+    for i in range(n):
+        for j in range(i + 1, n):
+            if abs(i - j) == 1 or abs(i - j) == n - 1:
+                continue
+            A, B = p.vertices[i], p.vertices[(i + 1) % n]
+            C, D = p.vertices[j], p.vertices[(j + 1) % n]
+            if intersect(A, B, C, D):
+                return False
+    return True
 
 
 def triangulate(p: Polygon) -> List[Triangle]:
@@ -41,7 +84,21 @@ def place_guards(triangles: List[Triangle]) -> List[Point]:
 def is_visible(guard: Point, intruder: Point, p: Polygon) -> bool:
     pass
 
+def fix_orientation(p: Polygon) -> Polygon:
+    """Wymusza orientację przeciwną do wskazówek zegara (CCW)."""
+    n = len(p.vertices)
+    area = 0.0
+    for i in range(n):
+        j = (i + 1) % n
+        area += p.vertices[i].x * p.vertices[j].y
+        area -= p.vertices[j].x * p.vertices[i].y
 
+    if area < 0:
+        print("[Orientacja]: Wykryto ruch zgodny z zegarem (CW). Odwracam na CCW.")
+        p.vertices.reverse()
+    else:
+        print("[Orientacja]: Wykryto ruch przeciwny do zegara (CCW). Jest OK.")
+    return p
 
 
 
@@ -88,7 +145,7 @@ def draw_gallery(polygon_data: Polygon, guard:Point):
     ax.set_ylim(min(all_y) - 1, max(all_y) + 1)
     ax.set_aspect('equal')
     ax.legend(loc='upper right')
-    ax.set_title("Polygon Defender: Test Widoczności", fontsize=14)
+    ax.set_title("Polygon Defender", fontsize=14)
    
    
     def on_click(event):
@@ -113,14 +170,18 @@ def draw_gallery(polygon_data: Polygon, guard:Point):
     plt.show()
 
 if __name__ == "__main__":
-    # punktu testowe
-    mock_vertices = [
-        Point(0, 0), Point(10, 0), Point(10, 3), Point(3, 3), 
-        Point(3, 10), Point(0, 10)
-    ]
-    my_gallery = Polygon(vertices=mock_vertices)
-    
-    # Stawiamy strażnika 
-    my_guard = Point(1, 1)
-    
-    draw_gallery(my_gallery, my_guard)
+    my_gallery = load_polygon()
+
+    if len(my_gallery.vertices) < 3:
+        print("[Błąd]: Wielokąt musi mieć przynajmniej 3 wierzchołki!")
+    else:
+        if not is_simple(my_gallery):
+            print("[Błąd]: Wielokąt nie jest prosty! Krawędzie przecinają się.")
+        else:
+            print("[Sukces]: Wielokąt z pliku jest prawidłowy (prosty).")
+
+            # Sprawdzenie i korekta orientacji
+            my_gallery = fix_orientation(my_gallery)
+
+            # Uruchomienie właściwej rozgrywki
+            draw_gallery(my_gallery, Point(1, 1))
