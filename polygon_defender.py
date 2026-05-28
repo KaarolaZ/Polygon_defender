@@ -123,6 +123,63 @@ def is_visible(guard: Point, intruder: Point, p:Polygon)->bool:
         
     return True # nic nie zablokowalo wzroku wiec untruz jest widoczny
 
+#------------------TRIANGULACJA---------------------------------------
+
+
+def cross(a: Point, b: Point, c: Point) -> float: 
+  return ( (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x) )
+
+def is_convex(a: Point, b: Point, c: Point) -> bool: 
+  return cross(a, b, c) > 0
+
+def point_in_triangle( p: Point, a: Point, b: Point, c: Point ) -> bool: 
+  d1 = cross(a, b, p)
+  d2 = cross(b, c, p) 
+  d3 = cross(c, a, p) 
+  has_negative = (d1 < 0) or (d2 < 0) or (d3 < 0)
+  has_positive = (d1 > 0) or (d2 > 0) or (d3 > 0) 
+
+  return not (has_negative and has_positive)
+
+def is_ear( prev: Point, curr: Point, next: Point, vertices: List[Point] ) -> bool:
+  if not is_convex(prev, curr, next):
+     return False
+  for p in vertices:
+    if p in [prev, curr, next]:
+       continue
+    if point_in_triangle(p, prev, curr, next): 
+      return False
+    
+  return True
+
+
+def triangulate(p: Polygon) -> List[Triangle]:
+  vertices = p.vertices[:]
+  triangles = []
+
+  while len(vertices) > 3: 
+    ear_found = False 
+    n = len(vertices)
+
+    for i in range(n): 
+      prev = vertices[(i - 1) % n] 
+      curr = vertices[i] 
+      next = vertices[(i + 1) % n]
+
+      if is_ear(prev, curr, next, vertices):
+        triangles.append( Triangle(prev, curr, next) )
+
+        del vertices[i]
+        ear_found = True
+        break
+
+    if not ear_found: 
+      raise ValueError( "blad triangulacji brak ucha" )
+
+  triangles.append( Triangle( vertices[0], vertices[1], vertices[2] ) )
+
+  return triangles
+
 #-------------WIZUALIZACJA------------------
 def draw_gallery(polygon_data: Polygon, guard:Point):
     fig, ax = plt.subplots(figsize=(8, 6))
@@ -185,3 +242,8 @@ if __name__ == "__main__":
 
             # Uruchomienie właściwej rozgrywki
             draw_gallery(my_gallery, Point(1, 1))
+    # --------------------------------------------------------
+   # triangles = triangulate(my_gallery)       #   triangulacja wywolanie <--------------------------------------
+    #print("\n triangulacja test")
+    #for i, t in enumerate(triangles, 1):
+    #  print( f"Trójkąt {i}: " f"({t.a.x}, {t.a.y}) | " f"({t.b.x}, {t.b.y}) | " f"({t.c.x}, {t.c.y})" )
