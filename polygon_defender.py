@@ -180,6 +180,70 @@ def triangulate(p: Polygon) -> List[Triangle]:
 
   return triangles
 
+#----------- STRAŻNICY --------------------------
+def place_guards(triangles: List[Triangle]) -> List[Point]:
+    """budowa grafu z trójkątów po triangulacji"""
+    if not triangles:
+        return []
+
+    triangles_count=len(triangles)
+    adj={i:[] for i in range(triangles_count)} #baza na graf
+    for i in range(triangles_count):
+        for j in range(i+1, triangles_count):
+            t1={(triangles[i].a.x, triangles[i].a.y), (triangles[i].b.x, triangles[i].b.y), (triangles[i].c.x, triangles[i].c.y)}
+            t2 = {(triangles[j].a.x, triangles[j].a.y), (triangles[j].b.x, triangles[j].b.y), (triangles[j].c.x, triangles[j].c.y)}
+            if len(t1.intersection(t2))==2:
+                adj[i].append(j)
+                adj[j].append(i)
+
+    point_map={} #żeby się nie dublowały
+    for t in triangles:
+        for p in [t.a, t.b, t.c]:
+            point_map[(p.x, p.y)]=p
+
+    colors={}
+    #bazowy trojkat
+    t0=triangles[0]
+    colors[(t0.a.x, t0.a.y)]=0
+    colors[(t0.b.x, t0.b.y)]=1
+    colors[(t0.c.x, t0.c.y)]=2
+    visited={0}
+    stack=[0]
+
+    while stack:
+        curr=stack.pop()
+        for neighbour in adj[curr]:
+            if neighbour not in visited:
+                visited.add(neighbour)
+                temp=triangles[neighbour]
+
+                temp_points=[temp.a,temp.b,temp.c]
+                used_colors=set()
+                uncolored_point=None
+
+                for point in temp_points:
+                    key=(point.x, point.y)
+                    if key in colors:
+                        used_colors.add(colors[key])
+                    else:
+                        uncolored_point=point
+
+                if uncolored_point is not None:
+                    all_colors={0,1,2}
+                    free_color=list(all_colors-used_colors)[0]
+                    colors[(uncolored_point.x, uncolored_point.y)]=free_color
+
+                stack.append(neighbour)
+
+    groups_by_color={0: [],1: [],2: []}
+    for point_key, col in colors.items():
+        groups_by_color[col].append(point_map[point_key])
+
+    #wybor straznikow po min liczbie wierzcholkow danego koloru
+    min_col=min(groups_by_color, key=lambda k: len(groups_by_color[k]))
+
+    return groups_by_color[min_col]
+
 #-------------WIZUALIZACJA------------------
 def draw_gallery(polygon_data: Polygon, guard:Point):
     fig, ax = plt.subplots(figsize=(8, 6))
@@ -244,6 +308,7 @@ if __name__ == "__main__":
             draw_gallery(my_gallery, Point(1, 1))
     # --------------------------------------------------------
    # triangles = triangulate(my_gallery)       #   triangulacja wywolanie <--------------------------------------
+    # guards_positions=place_guards(triangles)
     #print("\n triangulacja test")
     #for i, t in enumerate(triangles, 1):
     #  print( f"Trójkąt {i}: " f"({t.a.x}, {t.a.y}) | " f"({t.b.x}, {t.b.y}) | " f"({t.c.x}, {t.c.y})" )
