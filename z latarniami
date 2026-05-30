@@ -127,9 +127,9 @@ def is_visible(guard: Point, intruder: Point, p: Polygon) -> bool:
         p2 = p.vertices[(i + 1) % n]  # % n pozwala nam połączyć ostatni punkt z pierwszym
 
         if intersect(guard, intruder, p1, p2):
-            return False  # nie widać intruza
+            return False  
 
-    return True  # nic nie zablokowalo wzroku wiec untruz jest widoczny
+    return True  
 
 
 # ------------------TRIANGULACJA---------------------------------------
@@ -269,11 +269,11 @@ def draw_gallery(polygon_data: Polygon, triangles: List[Triangle]):
     player_guards = []
     triangle_patches = []
 
-    # Generowanie stref (trójkątów) - domyślnie ciemne strefy
+    # Generowanie stref  - domyślnie ciemne 
     for t in triangles:
         pts = [[t.a.x, t.a.y], [t.b.x, t.b.y], [t.c.x, t.c.y]]
-        # POPRAWIONE: bezpośrednie wywołanie MatplotPolygon bez .Polygon
-        poly_t = MatplotPolygon(pts, closed=True, fill=True, facecolor='#404040', edgecolor='#222222', alpha=0.9)
+       
+        poly_t = MatplotPolygon(pts, closed=True, fill=True, facecolor="gray", edgecolor='black', alpha=0.9)
         ax.add_patch(poly_t)
         triangle_patches.append((t, poly_t))
 
@@ -295,13 +295,13 @@ def draw_gallery(polygon_data: Polygon, triangles: List[Triangle]):
     ax.set_ylim(min(all_y) - 1, max(all_y) + 1)
     ax.set_aspect('equal')
     ax.legend(loc='upper right')
-    ax.set_title("Oświetl Całą Galerię! (Gra Logiczna)", fontsize=14)
+    ax.set_title("Oświetl Całą Galerię", fontsize=14)
 
     def on_click(event):
         if event.xdata is None or event.ydata is None:
             return
 
-        # 1. Znajdź najbliższy wierzchołek galerii (przyciąganie do narożnika)
+        # Znajdź najbliższy wierzchołek galerii (przyciąganie do narożnika)
         click_point = Point(event.xdata, event.ydata)
         closest_vertex = min(polygon_data.vertices,
                              key=lambda v: (v.x - click_point.x) ** 2 + (v.y - click_point.y) ** 2)
@@ -312,7 +312,7 @@ def draw_gallery(polygon_data: Polygon, triangles: List[Triangle]):
             fig.canvas.draw_idle()
             return
 
-        # 2. Logika dodawania / usuwania latarni
+        # Logika dodawania / usuwania latarni
         vertex_key = (closest_vertex.x, closest_vertex.y)
         existing_keys = [(g.x, g.y) for g in player_guards]
 
@@ -336,15 +336,15 @@ def draw_gallery(polygon_data: Polygon, triangles: List[Triangle]):
         for t_geom, t_patch in triangle_patches:
             t_vertices = {(t_geom.a.x, t_geom.a.y), (t_geom.b.x, t_geom.b.y), (t_geom.c.x, t_geom.c.y)}
 
-            if t_vertices.intersection(active_keys):
-                t_patch.set_facecolor('#FFF2B2')  # Oświetlony (żółty)
+            if t_vertices.intersection(active_keys):# sprawdzanie czy któryś z 3 wierzchołków pokrywa się z latarnią
+                t_patch.set_facecolor('yellow')  # Oświetlony 
                 oświetlone_trójkąty += 1
             else:
-                t_patch.set_facecolor('#404040')  # Ciemny
+                t_patch.set_facecolor('gray')  # Ciemny
 
         # 4. Sprawdzenie warunku wygranej
         if oświetlone_trójkąty == len(triangles):
-            status_text.set_text(f"BRAWO! Oświetliłeś galerię przy użyciu {len(player_guards)}/{max_guards} latarni! 🌟")
+            status_text.set_text(f"BRAWO! Oświetliłeś galerię przy użyciu {len(player_guards)}/{max_guards} latarni")
             status_text.set_color('green')
         else:
             status_text.set_text(
@@ -357,7 +357,7 @@ def draw_gallery(polygon_data: Polygon, triangles: List[Triangle]):
     plt.show()
 
 
-# --- SEKRETY STARTOWE PROGRAMU ---
+
 if __name__ == "__main__":
     my_gallery = load_polygon()
 

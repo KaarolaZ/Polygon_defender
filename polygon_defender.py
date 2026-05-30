@@ -68,7 +68,7 @@ def is_simple(p: Polygon) -> bool:
                 continue
             A, B = p.vertices[i], p.vertices[(i + 1) % n]
             C, D = p.vertices[j], p.vertices[(j + 1) % n]
-            if intersect(A, B, C, D):
+            if intersect_for_validation(A, B, C, D):
                 return False
     return True
 
@@ -102,26 +102,14 @@ def fix_orientation(p: Polygon) -> Polygon:
 
 
 
-#--------------------PRZECINANIE ODCINKÓW------------------------
-def point_placement(A:Point, B:Point, C:Point) -> bool:
-    return (C.y - A.y)* (B.x -A.x) > (B.y -A.y)*(C.x -A.x)
+# Funkcje pomocnicze do sprawdzania prostoty wielokąta
+def point_placement(A: Point, B: Point, C: Point) -> bool:
+    return (C.y - A.y) * (B.x - A.x) > (B.y - A.y) * (C.x - A.x)
 
-#zwraca true, jak odcinki się przecinają
-def intersect(A:Point, B:Point, C:Point, D:Point) ->bool:
-    return point_placement(A, C, D) !=point_placement(B, C, D) and point_placement(A,B,C) != point_placement(A, B,D)
-
-#widoczność
-def is_visible(guard: Point, intruder: Point, p:Polygon)->bool:
-    n= len(p.vertices)
-
-    for i in range(n):
-        p1 = p.vertices[i]
-        p2=p.vertices[(i+1)% n] #% n pozwala nam połączyć ostatni punkt z pierwszym
-
-        if intersect(guard, intruder, p1, p2):
-            return False # nie widać intruza
-        
-    return True # nic nie zablokowalo wzroku wiec untruz jest widoczny
+def intersect_for_validation(A: Point, B: Point, C: Point, D: Point) -> bool:
+    if A == C or A == D or B == C or B == D:
+        return False
+    return point_placement(A, C, D) != point_placement(B, C, D) and point_placement(A, B, C) != point_placement(A, B, D)
 
 #------------------TRIANGULACJA---------------------------------------
 
@@ -245,50 +233,98 @@ def place_guards(triangles: List[Triangle]) -> List[Point]:
     return groups_by_color[min_col]
 
 #-------------WIZUALIZACJA------------------
-def draw_gallery(polygon_data: Polygon, guard:Point):
+def draw_gallery(polygon_data: Polygon, triangles: List[Triangle]):
     fig, ax = plt.subplots(figsize=(8, 6))
     plt.subplots_adjust(bottom=0.2)
 
-    points = [[pt.x, pt.y] for pt in polygon_data.vertices]
+    n = len(polygon_data.vertices)
+    max_guards = n // 3 #limit latarni z twierdzenia fiska
 
-    poly_patch = MatplotPolygon(points, closed=True, fill=True, color='lightgray', ec='black')
-    ax.add_patch(poly_patch)
+    player_guards = []
+    triangle_patches = []
 
-    ax.plot(guard.x, guard.y, 'bo', markersize=8, label="Strażnik")
-    intruder_plot, = ax.plot([], [], 'ro', markersize=8, label="Intruz")
-    los_line, = ax.plot([], [], 'g-', lw=2, alpha=0.7) # Line of Sight
-    status_text = ax.text(0.5, -0.15, '', transform=ax.transAxes, ha='center', fontsize=12, fontweight='bold')
-    
-    # Ustawienia osi
-    all_x = [p.x for p in polygon_data.vertices] + [guard.x]
-    all_y = [p.y for p in polygon_data.vertices] + [guard.y]
+#rysowaniw wnętrza 
+    for t in triangles:
+        pts = [[t.a.x, t.a.y], [t.b.x, t.b.y], [t.c.x, t.c.y]]
+        poly_t = MatplotPolygon(pts, closed=True, fill=True, facecolor='gray', edgecolor='black', alpha=0.9)
+        ax.add_patch(poly_t)
+        triangle_patches.append((t, poly_t))
+
+#rysowanie zewnętrza
+    poly_points = [[pt.x, pt.y] for pt in polygon_data.vertices]
+    outline_patch = MatplotPolygon(poly_points, closed=True, fill=False, ec='black', lw=3, zorder=3)
+    ax.add_patch(outline_patch)
+
+#latarnie
+    guards_plot, = ax.plot([], [], 'yo', markersize=12, markeredgecolor='black', label="Twoje Latarnie", zorder=4)
+
+    status_text = ax.text(0.5, -0.15, f"Postaw latarnie w rogach. Limit: {max_guards}",
+                          transform=ax.transAxes, ha='center', fontsize=12, fontweight='bold')
+
+    all_x = [p.x for p in polygon_data.vertices]
+    all_y = [p.y for p in polygon_data.vertices]
     ax.set_xlim(min(all_x) - 1, max(all_x) + 1)
     ax.set_ylim(min(all_y) - 1, max(all_y) + 1)
     ax.set_aspect('equal')
     ax.legend(loc='upper right')
-    ax.set_title("Polygon Defender", fontsize=14)
-   
-   
+    ax.set_title("Oświetl Całą Galerię", fontsize=14)
+
     def on_click(event):
-        if event.xdata is None or event.ydata is None: return # Kliknięcie poza osiami
+        if event.xdata is None or event.ydata is None:
+            return
 
-        intruder = Point(event.xdata, event.ydata)
-        intruder_plot.set_data([intruder.x], [intruder.y])
-        # Sprawdzanie widoczności
-        visible = is_visible(guard, intruder, polygon_data)
+#tworzymy punkt w miejscu kliknięcia
+        click_point = Point(event.xdata, event.ydata)
+        closest_vertex = min(polygon_data.vertices,
+                             key=lambda v: (v.x - click_point.x) ** 2 + (v.y - click_point.y) ** 2)
 
-        los_line.set_data([guard.x, intruder.x], [guard.y, intruder.y])
-        if visible:
-            status_text.set_text("STATUS: ZŁAPANY ")
+        dist_sq = (closest_vertex.x - click_point.x) ** 2 + (closest_vertex.y - click_point.y) ** 2
+        if dist_sq > 0.5:
+            status_text.set_text("Kliknij bliżej któregoś z rogów galerii!")
+            fig.canvas.draw_idle()
+            return
+
+#dodawanie i usuwanie punktów
+        vertex_key = (closest_vertex.x, closest_vertex.y)
+        existing_keys = [(g.x, g.y) for g in player_guards]
+
+        if vertex_key in existing_keys:
+            idx = existing_keys.index(vertex_key)
+            player_guards.pop(idx)
         else:
-           status_text.set_text("STATUS: UKRYTY ")
-            
+            if len(player_guards) >= max_guards:
+                status_text.set_text(f"Wykorzystałeś limit {max_guards} latarni! Kliknij w istniejącą, by ją usunąć.")
+                fig.canvas.draw_idle()
+                return
+            player_guards.append(closest_vertex)
+
+        guards_plot.set_data([g.x for g in player_guards], [g.y for g in player_guards])
+
+        oświetlone_trójkąty = 0
+        active_keys = {(g.x, g.y) for g in player_guards}
+
+        for t_geom, t_patch in triangle_patches:
+            t_vertices = {(t_geom.a.x, t_geom.a.y), (t_geom.b.x, t_geom.b.y), (t_geom.c.x, t_geom.c.y)}
+
+            if t_vertices.intersection(active_keys):
+                t_patch.set_facecolor('yellow')  
+                oświetlone_trójkąty += 1
+            else:
+                t_patch.set_facecolor('gray')  
+
+        if oświetlone_trójkąty == len(triangles):
+            status_text.set_text(f"BRAWO! Oświetliłeś galerię przy użyciu {len(player_guards)}/{max_guards} latarni.")
+            status_text.set_color('green')
+        else:
+            status_text.set_text(
+                f"Użyte latarnie: {len(player_guards)}/{max_guards}. Oświetlone: {oświetlone_trójkąty}/{len(triangles)} stref.")
+            status_text.set_color('black')
+
         fig.canvas.draw_idle()
 
-    # Podpięcie zdarzenia kliknięcia myszką do wykresu
     cid = fig.canvas.mpl_connect('button_press_event', on_click)
-    
     plt.show()
+
 
 if __name__ == "__main__":
     my_gallery = load_polygon()
@@ -304,8 +340,16 @@ if __name__ == "__main__":
             # Sprawdzenie i korekta orientacji
             my_gallery = fix_orientation(my_gallery)
 
-            # Uruchomienie właściwej rozgrywki
-            draw_gallery(my_gallery, Point(1, 1))
+            try:
+                #  Obliczenie trójkątów
+                calculated_triangles = triangulate(my_gallery)
+                print(f"[Sukces]: Triangulacja powiodła się. Liczba trójkątów: {len(calculated_triangles)}")
+                    
+                #  Uruchomienie właściwej rozgrywki
+                draw_gallery(my_gallery, calculated_triangles)
+                
+            except ValueError as e:
+                print(f"[Błąd Algorytmu]: {e}")
     # --------------------------------------------------------
    # triangles = triangulate(my_gallery)       #   triangulacja wywolanie <--------------------------------------
     # guards_positions=place_guards(triangles)
